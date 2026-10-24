@@ -66,6 +66,7 @@ This project builds a data pipeline that collects and consolidates the incoming 
 
 - **KPI snapshot (2025):** average inflation 9.15, investment 23.57% of GDP, savings 21.77% of GDP, real GDP growth 3.66% and unemployment 5.00%, across 194 countries.
 - The typical country's **Misery Index** rose from 7.2 in 2019 to a peak of **12.5 in 2022**, driven by the inflation surge, and eased to **7.9 by 2025**.
+- **Outlier:** Venezuela's 2019 inflation of **19,906%** pushed the 2019 average inflation to **102%**. Using the median instead gives **2.2%**, and removes the false spike in the Misery Index
 - **Investment** stayed in a narrow range of about 23.5% to 24.7% of GDP across the years.
 - **Guyana** is the fastest-growing economy in 2025 at about **18.7%**, followed by Palau (11.9%), Senegal (10.2%) and Macao SAR (9.6%). Most of the top 10 are small economies, so high growth reflects a small base.
 - **Timor-Leste** has the largest 2025 government deficit at about **-43% of GDP**, followed by Kiribati (-14.8%) and Brunei Darussalam (-12.7%). The chart shows deficits only, not total debt.
