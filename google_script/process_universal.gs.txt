@@ -1,0 +1,111 @@
+/**
+ * Automated Data Pipeline: Google Drive folder -> master Google Sheet
+ *
+ * What it does
+ * 1. Reads every file in the SOURCE folder (Google Sheets or Excel .xlsx).
+ * 2. Google Sheets files are read directly. A temporary file is created only for files that are
+ *    not in spreadsheet format (Excel .xlsx): they are converted to a temporary Google Sheet
+ *    (Drive API), the first sheet is read, and the temporary copy is then deleted.
+ * 3. Appends the data to the master sheet. The header row is written once (first file);
+ *    the header row of every later file is skipped.
+ * 4. Moves each processed file to the ARCHIVE folder so it is never processed twice.
+ *
+ * Setup
+ * - Bind this script to the master Google Sheet (Extensions > Apps Script).
+ * - Enable the "Drive API" advanced service (Services > + > Drive API).
+ * - Replace the two folder IDs below with your own.
+ * - Add a time-driven trigger for processUniversal() (Triggers > Add Trigger > Time-driven > Hour timer).
+ *
+ * Note: all files must follow the same column order (fixed submission template).
+ */
+
+// ---------- CONFIGURATION ----------
+
+var SOURCE_FOLDER_ID = "YOUR_SOURCE_FOLDER_ID";
+var ARCHIVE_FOLDER_ID = "YOUR_ARCHIVE_FOLDER_ID";
+
+function processUniversal() {
+
+  // Get folder objects from Drive using their IDs
+  var sourceFolder = DriveApp.getFolderById(SOURCE_FOLDER_ID);
+  var archiveFolder = DriveApp.getFolderById(ARCHIVE_FOLDER_ID);
+
+  // Master sheet = the active sheet of the spreadsheet this script is bound to
+  var masterSheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+
+  // Iterate over each file in the source folder
+  var files = sourceFolder.getFiles();
+  while (files.hasNext()) {
+    var file = files.next();
+    var fileName = file.getName();
+    var mimeType = file.getMimeType();
+
+    Logger.log(fileName + " | " + mimeType);
+
+    var dataToCopy = [];
+
+    // Scenario 1: file is already a Google Sheet
+    if (mimeType === MimeType.GOOGLE_SHEETS) {
+
+      Logger.log("Processing as Google Sheet: " + fileName);
+
+      try {
+        var sheet = SpreadsheetApp.openById(file.getId()).getSheets()[0];
+        dataToCopy = sheet.getDataRange().getValues();
+      } catch (e) {
+        Logger.log("Error reading Google Sheet " + fileName + ": " + e);
+      }
+
+    // Scenario 2: file is not in Google Sheets format (Excel), so a temporary Google Sheet is needed
+    } else if (mimeType.indexOf("excel") > -1 || mimeType.indexOf("spreadsheet") > -1 || fileName.toLowerCase().endsWith(".xlsx")) {
+
+      Logger.log("Processing as Excel file: " + fileName);
+
+      try {
+        // Convert the Excel file to a temporary Google Sheet
+        var tempFileConfig = {
+          name: "[Temp]" + fileName,
+          mimeType: MimeType.GOOGLE_SHEETS,
+          parents: [SOURCE_FOLDER_ID]
+        };
+
+        var tempFile = Drive.Files.create(tempFileConfig, file.getBlob());
+        var tempSheet = SpreadsheetApp.openById(tempFile.id).getSheets()[0];
+        dataToCopy = tempSheet.getDataRange().getValues();
+
+        // Trash the temporary sheet
+        DriveApp.getFileById(tempFile.id).setTrashed(true);
+
+      } catch (e) {
+        Logger.log("Error converting Excel " + fileName + ": " + e);
+      }
+    }
+
+    // Copy data to the master sheet, then move the file to the archive folder
+    if (dataToCopy.length > 0) {
+      try {
+
+        if (masterSheet.getLastRow() === 0) {
+          // Empty master sheet: write header + data
+          masterSheet.getRange(1, 1, dataToCopy.length, dataToCopy[0].length).setValues(dataToCopy);
+        } else {
+          // Otherwise skip the header row and append only the data rows
+          var dataBody = dataToCopy.slice(1);
+          if (dataBody.length > 0) {
+            masterSheet.getRange(masterSheet.getLastRow() + 1, 1, dataBody.length, dataBody[0].length).setValues(dataBody);
+          }
+        }
+
+        file.moveTo(archiveFolder);
+        Logger.log("Success: processed and archived " + fileName);
+
+      } catch (e) {
+        Logger.log("Error copying data from " + fileName + ": " + e);
+      }
+
+    } else {
+      Logger.log("Skipped " + fileName + ": no data found");
+    }
+
+  } // end of while loop
+}
